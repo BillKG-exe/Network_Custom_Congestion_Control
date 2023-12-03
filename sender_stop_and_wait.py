@@ -11,7 +11,7 @@ MESSAGE_SIZE = PACKET_SIZE - SEQ_ID_SIZE
 
 def send_stop_wait_protocol():
     # read data
-    with open('send.txt', 'rb') as f:
+    with open('file.mp3', 'rb') as f:
         data = f.read()
 
     # create a udp socket
@@ -55,7 +55,7 @@ def send_stop_wait_protocol():
                     print(ack_id, ack_res)
                     
                     # ack id == sequence id, move on
-                    if ack_id == seq_id and ack_res == 'ack':
+                    if ack_id == seq_id + 1020 or ack_id == len(data):
                         break
                 except socket.timeout:
                     # no ack, resend message
@@ -70,10 +70,24 @@ def send_stop_wait_protocol():
         throughput = len(data) / (time.time() - start_time)
 
         # send final closing message
-        udp_socket.sendto(int.to_bytes(-1, 4, signed=True, byteorder='big'), ('localhost', 5001))
+        udp_socket.sendto(int.to_bytes(len(data), 4, signed=True, byteorder='big')+ b"", ('localhost', 5001))
+
+        response = []
+        while True:
+            try:
+                ack, _ = udp_socket.recvfrom(PACKET_SIZE)
+                response.append(ack[SEQ_ID_SIZE:].decode())
+
+                if "fin" in response and "ack" in response:
+                    #udp_socket.sendto(b"==FINACK==", ('localhost', 5001))
+                    break
+            except socket.timeout:
+                udp_socket.sendto(int.to_bytes(len(data), 4, signed=True, byteorder='big')+ b"", ('localhost', 5001))
+
+        udp_socket.sendto(int.to_bytes(len(data), 4, signed=True, byteorder='big') + b"==FINACK==", ('localhost', 5001))
 
         # Computing average per-packet delay
-        per_packet_delay /= packet_count
+        per_packet_delay /= packet_count 
 
         return throughput, per_packet_delay
     
