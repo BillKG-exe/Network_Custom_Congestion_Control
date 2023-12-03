@@ -45,10 +45,10 @@ def send_sliding_window_protocol():
             # Send packets within the window
             # window_base + WINDOW_SIZE -> make sure that window does not exceed
             # the window size of 100 packets
+            packet_delay_start = time.time()
             for i in range(window_base, min(window_top, (window_base + WINDOW_SIZE), len(window))):
-                print("Index: %d window base: %d window top: %d win base+top: %d len(window): %d" % (i, window_base, window_top, window_base+WINDOW_SIZE, len(window)))
+                #print("Index: %d window base: %d window top: %d win base+top: %d len(window): %d" % (i, window_base, window_top, window_base+WINDOW_SIZE, len(window)))
                 udp_socket.sendto((window[i].pid + window[i].message), ('localhost', 5001))
-                packet_delay_start = time.time()
                 window[i].sentStatus = True
 
             
@@ -58,22 +58,21 @@ def send_sliding_window_protocol():
                     ack, _ = udp_socket.recvfrom(PACKET_SIZE)
                     ack_id = int.from_bytes(ack[:SEQ_ID_SIZE], byteorder='big')
                     
-                    print(ack_id, ack[SEQ_ID_SIZE:].decode())
+                    per_packet_delay += time.time() - packet_delay_start
+                    #print(ack_id, ack[SEQ_ID_SIZE:].decode())
 
                     # Update window pointers
                     while window and int.from_bytes(window[0].pid, byteorder='big') < ack_id:
-                        print("")
                         window.pop(0)
-                        #window_base += 1
                         window_top = min(window_base + WINDOW_SIZE, len(window))
-                        print(f"window length is {len(window)}")
+                        #print(f"window length is {len(window)}")
                     break
 
                 except socket.timeout:
                     # Ensures that leading packets in thein the queue are sent  
                     for packet in window:
-                        if packet.sentStatus is True and not packet.recvStatus:
-                            udp_socket.sendto(packet.pid + packet.message, ('localhost', 5001))
+                        if packet.sentStatus is True:
+                            udp_socket.sendto((packet.pid + packet.message), ('localhost', 5001))
                         elif packet.sentStatus is False:
                             break
 
@@ -104,15 +103,10 @@ def evaluate_performance():
     avg_throughput = 0
     avg_per_packet_delay = 0
 
-    for _ in range(10):
-        throughput, delay = send_sliding_window_protocol()
+    throughput, delay = send_sliding_window_protocol()
 
-        avg_throughput += throughput
-        avg_per_packet_delay += delay
-        break
-
-    avg_throughput /= 10
-    avg_per_packet_delay /= 10
+    avg_throughput += throughput
+    avg_per_packet_delay += delay
         
     print("Report")
     print("Throughput:               %.2f" % avg_throughput)
