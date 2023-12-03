@@ -52,7 +52,7 @@ def send_stop_wait_protocol():
                     
                     # extract ack id
                     ack_id, ack_res = int.from_bytes(ack[:SEQ_ID_SIZE], byteorder='big'), ack[SEQ_ID_SIZE:].decode()
-                    print(ack_id, ack_res)
+                    #print(ack_id, ack_res)
                     
                     # ack id == sequence id, move on
                     if ack_id == seq_id + 1020 or ack_id == len(data):
@@ -96,14 +96,10 @@ def evaluate_performance():
     avg_throughput = 0
     avg_per_packet_delay = 0
 
-    for _ in range(10):
-        throughput, delay = send_stop_wait_protocol()
+    throughput, delay = send_stop_wait_protocol()
 
-        avg_throughput += throughput
-        avg_per_packet_delay += delay
-
-    avg_throughput /= 10
-    avg_per_packet_delay /= 10
+    avg_throughput += throughput
+    avg_per_packet_delay += delay
         
     print("Report")
     print("Throughput:               %.2f" % avg_throughput)
