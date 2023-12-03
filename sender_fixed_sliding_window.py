@@ -30,6 +30,8 @@ def send_sliding_window_protocol():
             # Append the packet to the window store
             window.append(Packet(int.to_bytes(seq_id, SEQ_ID_SIZE, byteorder='big', signed=True), data[seq_id:seq_id + MESSAGE_SIZE]))
             seq_id += MESSAGE_SIZE
+
+        WINDOW_LENGTH = len(window)
         
         # Lower bound of sliding window
         window_base = 0
@@ -43,32 +45,29 @@ def send_sliding_window_protocol():
             # Send packets within the window
             # window_base + WINDOW_SIZE -> make sure that window does not exceed
             # the window size of 100 packets
-            for i in range(window_base, min(window_top, (window_base + WINDOW_SIZE), len(data))):
-                udp_socket.sendto(window[i].pid + window[i].message, ('localhost', 5001))
+            for i in range(window_base, min(window_top, (window_base + WINDOW_SIZE), len(window))):
+                print("Index: %d window base: %d window top: %d win base+top: %d len(window): %d" % (i, window_base, window_top, window_base+WINDOW_SIZE, len(window)))
+                udp_socket.sendto((window[i].pid + window[i].message), ('localhost', 5001))
                 packet_delay_start = time.time()
                 window[i].sentStatus = True
 
-                # Move sequence id forward
-                seq_id += MESSAGE_SIZE
-
+            
             # Wait for acknowledgments
             while True:
                 try:
                     ack, _ = udp_socket.recvfrom(PACKET_SIZE)
                     ack_id = int.from_bytes(ack[:SEQ_ID_SIZE], byteorder='big')
-
-                    # Handle acknowledgment
-                    for packet in window:
-                        if packet.pid == ack_id:
-                            per_packet_delay += (time.time() - packet_delay_start)
-                            packet.recvStatus(True)
+                    
+                    print(ack_id, ack[SEQ_ID_SIZE:].decode())
 
                     # Update window pointers
-                    while window and window[0].recvStatus:
+                    while window and int.from_bytes(window[0].pid, byteorder='big') < ack_id:
+                        print("")
                         window.pop(0)
-                        window_base += 1
-                        window_top = min(window_base + WINDOW_SIZE, len(data))
-                    break 
+                        #window_base += 1
+                        window_top = min(window_base + WINDOW_SIZE, len(window))
+                        print(f"window length is {len(window)}")
+                    break
 
                 except socket.timeout:
                     # Ensures that leading packets in thein the queue are sent  
@@ -78,10 +77,26 @@ def send_sliding_window_protocol():
                         elif packet.sentStatus is False:
                             break
 
+        # send final closing message
+        udp_socket.sendto(int.to_bytes(len(data), 4, signed=True, byteorder='big')+ b"", ('localhost', 5001))
+
+        response = []
+        while True:
+            try:
+                ack, _ = udp_socket.recvfrom(PACKET_SIZE)
+                response.append(ack[SEQ_ID_SIZE:].decode())
+
+                if "fin" in response and "ack" in response:
+                    break
+            except socket.timeout:
+                udp_socket.sendto(int.to_bytes(len(data), 4, signed=True, byteorder='big')+ b"", ('localhost', 5001))
+
+        udp_socket.sendto(int.to_bytes(len(data), 4, signed=True, byteorder='big') + b"==FINACK==", ('localhost', 5001))
+
         # Computing throughput
         throughput = len(data) / (time.time() - start_time)
         # Computing average per packet delay
-        per_packet_delay /= len(window)
+        per_packet_delay /= (WINDOW_LENGTH * 1.0)
 
     return throughput, per_packet_delay 
 
@@ -94,6 +109,7 @@ def evaluate_performance():
 
         avg_throughput += throughput
         avg_per_packet_delay += delay
+        break
 
     avg_throughput /= 10
     avg_per_packet_delay /= 10
