@@ -147,8 +147,3 @@ def evaluate_performance():
 
 if __name__ == "__main__":
     evaluate_performance()
-
-    """                     if current_ack is None or current_ack != ack_id:
-                        current_ack = ack_id
-                    elif current_ack == ack_id:
-                        dup_ack += 1 """
