@@ -83,6 +83,7 @@ def send_tcp_tahoe_protocol():
                             ssthresh = (cwnd / 2)
                             cwnd = 1
                             dup_counter = 0
+                            udp_socket.sendto(window[0] + packet.message, ('localhost', 5001))
                     else:
                         dup_counter = 0
 
