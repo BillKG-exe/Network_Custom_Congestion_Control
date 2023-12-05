@@ -1,116 +1,133 @@
 import socket
-import time
+import time 
 from Util import Packet
 
 PACKET_SIZE = 1024
 SEQ_ID_SIZE = 4
-#MESSAGE_SIZE = 1020
 MESSAGE_SIZE = PACKET_SIZE - SEQ_ID_SIZE
-WINDOW_SIZE = 1
-#Window size starts a 1 from the beginnig
+INITIAL_WINDOW_SIZE = 1
+INITIAL_THRESHOLD = 64
+TIMEOUT = 1
 
 def send_tcp_tahoe_protocol():
-    #First, we need to read data from the file. We use 'rb' since the
-    #data is in binary
+
     with open('send.txt', 'rb') as f:
         data = f.read()
-
-    #create UDP socket to communicate with the receiver
+    
+    # create a udp socket to communicate with the receiver
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp_socket:
-        #Start timer for throughput
+        
         start_time = time.time()
 
-        # Bind the socket to an OS port
-        udp_socket.bind(("localhost", 5000))
-        udp_socket.settimeout(1)
+        per_packet_delay = 0
 
-        cwnd = WINDOW_SIZE
-        ssthresh = 64
+        packet_count = 0
+
+        # bind the socket to a OS port
+        udp_socket.bind(("localhost", 5000))
+        udp_socket.settimeout(TIMEOUT)
+
+        #Declare needed variables
         seq_id = 0
-        window = []
+        cwnd = INITIAL_WINDOW_SIZE
+        ssthresh = INITIAL_THRESHOLD
         last_ack = None
         dup_counter = 0
 
+        #UNCOMMENT THE FOLOWWING ONES IF NEEDED
+        # last_ack = None
+        # dup_counter = 0
+
+
         while seq_id < len(data):
-            # Creates packet with seq_id and message
-            # Append the packet to the window store
-            window.append(Packet(int.to_bytes(seq_id, SEQ_ID_SIZE, byteorder='big', signed=True), data[seq_id:seq_id + MESSAGE_SIZE]))
-            seq_id += MESSAGE_SIZE
-
-        WINDOW_LENGTH = len(window)
-        
-        # Lower bound of sliding window
-        window_base = 0
-        # Upper bound of sliding window
-        window_top = cwnd
-
-        # Variable to computer average per packet delay
-        per_packet_delay = 0
-      
-
-        while window_base < len(window):
-            # Send packets within the window
-            # window_base + WINDOW_SIZE -> make sure that window does not exceed
-            # the window size of 100 packets
-            for i in range(window_base, min(window_top, (window_base + cwnd), len(window))):
-                #print("Index: %d window base: %d window top: %d win base+top: %d len(window): %d" % (i, window_base, window_top, window_base + cwnd, len(window)))
-                udp_socket.sendto((window[i].pid + window[i].message), ('localhost', 5001))
-                packet_delay_start = time.time()
-                window[i].sentStatus = True
-
             
-            # Wait for acknowledgments
+            # create messages to send based o the size of the jumping window
+            window = []
+            messages_sent = {}
+            seq_id_tmp = seq_id
+            seq_id_send = seq_id
+
+            packet_delay_start = time.time()
+            for i in range(cwnd):
+                # construct messages
+                # sequence id of length SEQ_ID_SIZE + message of remaining PACKET_SIZE - SEQ_ID_SIZE bytes
+                #print("seq_id_tmp: " + str(seq_id_tmp))
+                print("cwnd: " + str(cwnd))
+                message = int.to_bytes(seq_id_tmp, SEQ_ID_SIZE, byteorder='big', signed=True) + data[seq_id_tmp : seq_id_tmp + MESSAGE_SIZE]
+                window.append((seq_id_tmp, message))
+                messages_sent[seq_id_send] = False
+                ## acks[seq_id_tmp] = False
+
+                # move seq_id tmp pointer ahead
+                seq_id_tmp += MESSAGE_SIZE
+
+            # send messages
+            for _, message in window:
+                udp_socket.sendto(message, ('localhost', 5001))
+
+            #calculate the expected acknoledment that indicates that all the messages were received
+            expected_ack = seq_id + MESSAGE_SIZE * cwnd
+            #print("printing expected calculated: " + str(expected_ack))
             
-            
+            # wait for negative_ acknowledgement
             while True:
                 try:
+                    # wait for ack
                     ack, _ = udp_socket.recvfrom(PACKET_SIZE)
-                    ack_id = int.from_bytes(ack[:SEQ_ID_SIZE], byteorder='big')
                     
-                    print(ack_id, ack[SEQ_ID_SIZE:].decode() + "last_ack:" + str(last_ack))
+                    # extract ack id
+                    ack_id = int.from_bytes(ack[:SEQ_ID_SIZE], byteorder='big')
+                    print(ack_id, ack[SEQ_ID_SIZE:])
+                    #print("printing expected from receiver:" + str(expected_ack))
+                    ##acks[ack_id] = True
 
+                    per_packet_delay += time.time() - packet_delay_start
+                    packet_count += 1
+                    
+                    # all packets received, move on and increase cwnd
+                    if ack_id == expected_ack:
+                        if(cwnd <= ssthresh):
+                            cwnd *= 2
+                        else:
+                            cwnd += 1
+                        break
 
-                    if(cwnd <= ssthresh):
-                        cwnd *= 2
-                    else:
-                        cwnd += 1
-                
+                    if ack_id >= len(data):
+                        seq_id = ack_id
+                        break
 
-                    if ack_id == last_ack:
+                    
+                    if(ack_id == last_ack):
                         dup_counter += 1
 
-                        if (dup_counter == 3):
-                            ssthresh = (cwnd / 2)
+                        if(dup_counter == 3):
+                            ssthresh = max(cwnd // 2, 1)
                             cwnd = 1
                             dup_counter = 0
-                            udp_socket.sendto(window[0] + packet.message, ('localhost', 5001))
+                            #FIX FOLLOWING ONE
+                            ind = ack_id // MESSAGE_SIZE
+                            _, message = window[ind]
+                            udp_socket.sendto(message, ('localhost', 5001))
                     else:
                         dup_counter = 0
-
+                    
                     last_ack = ack_id
 
 
 
-                    print(f"cwnd length is {cwnd}")
-
-                    # Update window pointers
-                    while window and int.from_bytes(window[0].pid, byteorder='big') < ack_id:
-                        #print("")
-                        window.pop(0)
-                        window_top = min(window_base + cwnd, len(window))
-                        #print(f"window length is {len(window)}")
-                    break
-
                 except socket.timeout:
-                    # Ensures that leading packets in thein the queue are sent  
-                    for packet in window:
-                        if packet.sentStatus is True and not packet.recvStatus:
-                            ssthresh = (cwnd / 2)
-                            cwnd = 1
-                            udp_socket.sendto(packet.pid + packet.message, ('localhost', 5001))
-                        elif packet.sentStatus is False:
-                            break
-
+                    # no ack received, resend unacked messages
+                    for sid, message in window:
+                        if sid in messages_sent and not messages_sent[sid]:
+                            print("This is timeout: " + str(sid))
+                            udp_socket.sendto(message, ('localhost', 5001))
+                            messages_sent[sid] = True
+                    
+            # move sequence id forward
+            #print("moving sequence id forward to: ")
+            seq_id = expected_ack
+            #print(seq_id)
+            
         # send final closing message
         udp_socket.sendto(int.to_bytes(len(data), 4, signed=True, byteorder='big')+ b"", ('localhost', 5001))
 
@@ -130,9 +147,10 @@ def send_tcp_tahoe_protocol():
         # Computing throughput
         throughput = len(data) / (time.time() - start_time)
         # Computing average per packet delay
-        per_packet_delay /= (WINDOW_LENGTH * 1.0)
+        per_packet_delay /= packet_count
 
     return throughput, per_packet_delay 
+
 
 def evaluate_performance():
     avg_throughput = 0
