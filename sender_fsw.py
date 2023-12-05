@@ -23,7 +23,9 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp_socket:
 
     # bind the socket to a OS port
     udp_socket.bind(("localhost", 5000))
-    udp_socket.settimeout(1)
+    # dynamically change timeout (every time a packet is timeout, we double it)
+    timeout = 1
+    udp_socket.settimeout(timeout)
 
     # lower bound of window
     window_start = 0
@@ -80,6 +82,11 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp_socket:
                 
                 # slide window if ack_id more than start of window (some new packets got acked)
                 if ack_id > (window_start * MESSAGE_SIZE):
+                    # we got a new ack, reset timeout to 1
+                    timeout = 1
+                    udp_socket.settimeout(timeout)
+
+                    # update window pointers
                     window_start_old = window_start
                     window_start = int(ack_id/MESSAGE_SIZE)
                     window_end_old = window_end
@@ -104,13 +111,16 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp_socket:
                             udp_socket.sendto(messages[window_start][1], ('localhost', 5001))
                             dup_ack = 0
 
-                # break if we have sent all data
+                # break if we have sent all data (will also break outer while, window_end = num_messages)
                 if(ack_id >= len(data)):
                     # we have to record packet delay of very last packet that just got acked
                     packet_delays[-1] = packet_end_time - packet_delays[-1]
                     break
 
             except socket.timeout:
+                # double the timeout
+                timeout *= 2
+                udp_socket.settimeout(timeout)
                 # no ack received, resend first msg in window
                 print("Resending (timeout)", messages[window_start][0])
                 udp_socket.sendto(messages[window_start][1], ('localhost', 5001))
