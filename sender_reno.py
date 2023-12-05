@@ -50,12 +50,14 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp_socket:
         for i in range(CWND):
             # construct messages
             # sequence id of length SEQ_ID_SIZE + message of remaining PACKET_SIZE - SEQ_ID_SIZE bytes
+            if seq_id_tmp > len(data):
+                break
+
             message = int.to_bytes(seq_id_tmp, SEQ_ID_SIZE, byteorder='big', signed=True) + data[seq_id_tmp : seq_id_tmp + MESSAGE_SIZE]
             messages.append((seq_id_tmp, message))
 
             # move seq_id tmp pointer ahead
             seq_id_tmp += MESSAGE_SIZE
-
         # send messages
         for _, message in messages:
             udp_socket.sendto(message, ('localhost', 5001))
@@ -74,7 +76,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp_socket:
                 packet_count += 1
 
                 # For debugging purposes
-                print(ack_id, ack[SEQ_ID_SIZE:], seq_id_tmp)
+                print(ack_id, ack[SEQ_ID_SIZE:])
 
                 # Keeps track of the most recent requested packet from receiver
                 missing_packet_id = ack_id
@@ -86,9 +88,17 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp_socket:
                 else:
                     acks[ack_id] = 1
 
+                # exit once all packets were received
+                if ack_id >= len(data):
+                    seq_id = ack_id
+                    break
+                
                 # If ack_id exceeds seq_temp_id or end of window
                 # increament CWND and break
                 if ack_id >= seq_id_tmp:
+                    # variable to upfate seq_id
+                    new_seq_id = seq_id + (MESSAGE_SIZE * CWND)
+
                     inc_size = (ack_id - seq_id) // MESSAGE_SIZE
 
                     if reached_limit:
@@ -102,10 +112,8 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp_socket:
                         SSTHRESH = CWND // 2
                         CWND = SSTHRESH
 
-                    # move sequence id forward 
-                    seq_id += MESSAGE_SIZE * CWND
-
-                    print("CWND: ", CWND, "Inc: ", inc_size)
+                    # MOving seq_id to right position
+                    seq_id = new_seq_id
                     break
                     
                 # Handles case of a triple duplicate
@@ -118,12 +126,10 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp_socket:
                     # Sending potentially lost packet
                     _, packet_message = messages[ack_id // MESSAGE_SIZE]
                     udp_socket.sendto(packet_message, ('localhost', 5001))
-                print("CWND2: ", CWND)
             except socket.timeout:
                 # no ack received, resend unacked messages
                 # Sends packets from requested ack_id to end of window size
                 reached_limit = False
-                print((missing_packet_id) // MESSAGE_SIZE)
                 _, message = messages[missing_packet_id // MESSAGE_SIZE]
                 udp_socket.sendto(message, ('localhost', 5001))
                         
