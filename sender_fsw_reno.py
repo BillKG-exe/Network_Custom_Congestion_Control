@@ -163,6 +163,6 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp_socket:
 
 # Print final report
 print("Report")
-print("Throughput:               %.4f," % throughput)
-print("Average Per-packet delay: %.4f," % avg_per_packet_delay)
-print("Performance metric:       %.4f" % (throughput / avg_per_packet_delay))
+print("Throughput:               %.2f," % throughput)
+print("Average Per-packet delay: %.2f," % avg_per_packet_delay)
+print("Performance metric:       %.2f" % (throughput / avg_per_packet_delay))
