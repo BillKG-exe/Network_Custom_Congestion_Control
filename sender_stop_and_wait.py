@@ -101,10 +101,10 @@ def evaluate_performance():
     avg_throughput += throughput
     avg_per_packet_delay += delay
         
-    print("Report")
-    print("Throughput:               %.2f" % avg_throughput)
-    print("Average Per-packet delay: %.2f" % avg_per_packet_delay)
-    print("Performance metric:       %.2f" % (avg_throughput / avg_per_packet_delay))
+    # Print final report
+    print("%.2f," % avg_throughput)
+    print("%.2f," % avg_per_packet_delay)
+    print("%.2f" % (avg_throughput / avg_per_packet_delay))
 
 
 if __name__ == "__main__":

@@ -59,7 +59,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp_socket:
 
         # send messages
         for sid, message in messages[window_start:window_end]:
-            print("Sending", sid)
+            #print("Sending", sid)
             # start timer for per packet delay before sending packets
             packet_delays.append(time.time())
             udp_socket.sendto(message, ('localhost', 5001))
@@ -75,7 +75,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp_socket:
 
                 # extract ack id
                 ack_id = int.from_bytes(ack[:SEQ_ID_SIZE], byteorder='big')
-                print(ack_id, ack[SEQ_ID_SIZE:])
+                #print(ack_id, ack[SEQ_ID_SIZE:])
                 
                 # slide window if ack_id more than start of window (some new packets got acked)
                 if ack_id > (window_start * MESSAGE_SIZE):
@@ -95,7 +95,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp_socket:
 
                     # send messages that just appeared in window
                     for sid, message in messages[window_end_old:window_end]:
-                        print("Sending (after window slide)", sid)
+                        #print("Sending (after window slide)", sid)
                         # start timer for per packet delay before sending new packets
                         packet_delays.append(time.time())
                         udp_socket.sendto(message, ('localhost', 5001))
@@ -105,7 +105,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp_socket:
                     dup_ack += 1
                     # fast retransmit if 3 dup acks
                     if(dup_ack == 3):
-                            print("Resending (fast retransmit)", messages[window_start][0])
+                            #print("Resending (fast retransmit)", messages[window_start][0])
                             udp_socket.sendto(messages[window_start][1], ('localhost', 5001))
                             dup_ack = 0
 
@@ -118,7 +118,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp_socket:
                 timeout *= 2
                 udp_socket.settimeout(timeout)
                 # no ack received, resend first msg in window
-                print("Resending (timeout)", messages[window_start][0])
+                #print("Resending (timeout)", messages[window_start][0])
                 udp_socket.sendto(messages[window_start][1], ('localhost', 5001))
 
                 
@@ -144,7 +144,6 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp_socket:
 
 
 # Print final report
-print("Report")
-print("Throughput:               %.2f," % throughput)
-print("Average Per-packet delay: %.2f," % avg_per_packet_delay)
-print("Performance metric:       %.2f" % (throughput / avg_per_packet_delay))
+print("%.2f," % throughput)
+print("%.2f," % avg_per_packet_delay)
+print("%.2f" % (throughput / avg_per_packet_delay))
