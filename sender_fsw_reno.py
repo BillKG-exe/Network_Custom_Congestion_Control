@@ -115,7 +115,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp_socket:
                     dup_ack += 1
                     if(dup_ack == 3):
                             # SET SSTHRESH TO HALF OF CWND
-                            SSTHRESH = WINDOW_SIZE // 2
+                            SSTHRESH = max(WINDOW_SIZE // 2, 1)
                             # RESET CWND TO SLOW START THRESHOLD PLUS 3 TIMES SEGMENT SIZE
                             WINDOW_SIZE = SSTHRESH + 3
                             # fast retransmit
@@ -129,7 +129,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp_socket:
 
             except socket.timeout:
                 # SET SSTHRESH TO HALF OF CWND
-                SSTHRESH = WINDOW_SIZE // 2
+                SSTHRESH = max(WINDOW_SIZE // 2, 1)
                 # RESET CWND TO 1
                 WINDOW_SIZE = 1
                 # double the timeout
