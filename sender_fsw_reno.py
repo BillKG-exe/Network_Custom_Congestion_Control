@@ -85,7 +85,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp_socket:
                     window_start_old = window_start
                     window_start = math.ceil(ack_id/MESSAGE_SIZE)
 
-                    ## UPDATE CWND
+                    # UPDATE CWND
                     if(WINDOW_SIZE < SSTHRESH):
                         # SLOW START
                         WINDOW_SIZE += window_start - window_start_old
@@ -98,6 +98,9 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp_socket:
                     # update window end pointers  
                     window_end_old = window_end
                     window_end = min(window_start + WINDOW_SIZE, num_messages)
+                    # HAVE TO MAKE SURE THE WINDOW END DOESNT MOVE BACKWARDS AFTER WINDOW RESIZE
+                    if (window_end < window_end_old):
+                        window_end = window_end_old
 
                     # record delays for messages that just acknowledged
                     for i in range(window_start_old, window_start):
@@ -114,14 +117,14 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp_socket:
                 else:
                     dup_ack += 1
                     if(dup_ack == 3):
-                            # SET SSTHRESH TO HALF OF CWND
-                            SSTHRESH = max(WINDOW_SIZE // 2, 1)
-                            # RESET CWND TO SLOW START THRESHOLD PLUS 3 TIMES SEGMENT SIZE
-                            WINDOW_SIZE = SSTHRESH + 3
-                            # fast retransmit
-                            print("Resending (fast retransmit)", messages[window_start][0])
-                            udp_socket.sendto(messages[window_start][1], ('localhost', 5001))
-                            dup_ack = 0
+                        # SET SSTHRESH TO HALF OF CWND
+                        SSTHRESH = max(WINDOW_SIZE // 2, 1)
+                        # RESET CWND TO SLOW START THRESHOLD PLUS 3 TIMES SEGMENT SIZE
+                        WINDOW_SIZE = SSTHRESH + 3
+                        # fast retransmit
+                        print("Resending (fast retransmit)", messages[window_start][0])
+                        udp_socket.sendto(messages[window_start][1], ('localhost', 5001))
+                        dup_ack = 0
 
                 # break if we have sent all data (will also break outer while, window_end = num_messages)
                 if(ack_id >= len(data)):
