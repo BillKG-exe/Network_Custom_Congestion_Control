@@ -14,7 +14,7 @@ WINDOW_SIZE = 1
 SSTHRESH = 64
 
 # read data
-with open('send.txt', 'rb') as f:
+with open('file.mp3', 'rb') as f:
     data = f.read()
 
 # PACKETIZE DATA
