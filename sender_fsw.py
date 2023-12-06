@@ -1,5 +1,6 @@
 import socket
 import time
+import math
 
 # total packet size
 PACKET_SIZE = 1024
@@ -13,6 +14,22 @@ WINDOW_SIZE = 100
 # read data
 with open('send.txt', 'rb') as f:
     data = f.read()
+
+# PACKETIZE DATA
+# start sending data from 0th sequence
+seq_id = 0
+# create messages
+messages = []
+# how many total messages to send
+num_messages = math.ceil(len(data)/MESSAGE_SIZE)
+# store all messages to be sent in messages
+for i in range(num_messages):
+    # construct messages
+    # sequence id of length SEQ_ID_SIZE + message of remaining PACKET_SIZE - SEQ_ID_SIZE bytes
+    message = int.to_bytes(seq_id, SEQ_ID_SIZE, byteorder='big', signed=True) + data[seq_id : seq_id + MESSAGE_SIZE]
+    messages.append((seq_id, message))
+    # move seq_id tmp pointer ahead
+    seq_id += MESSAGE_SIZE
  
 # create a udp socket
 with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp_socket:
@@ -27,32 +44,12 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp_socket:
     timeout = 1
     udp_socket.settimeout(timeout)
 
-    # lower bound of window
+    # lower bound of window (increments by 1 for every packet)
     window_start = 0
     # upper bound of window (to avoid do while, we set this first thing in while loop)
     window_end = 0
     # number of dup acks (when reaches 3, fast restransmit and reset to 0)
     dup_ack = 0
-
-    # start sending data from 0th sequence
-    seq_id = 0
-    # create messages
-    messages = []
-    # how many total messages to send
-    num_messages = 0
-    if(len(data) % MESSAGE_SIZE == 0):
-        num_messages = int(len(data)/MESSAGE_SIZE)
-    else:
-        num_messages = int(len(data)/MESSAGE_SIZE) + 1
-
-    # store all messages to be sent in messages
-    for i in range(num_messages):
-        # construct messages
-        # sequence id of length SEQ_ID_SIZE + message of remaining PACKET_SIZE - SEQ_ID_SIZE bytes
-        message = int.to_bytes(seq_id, SEQ_ID_SIZE, byteorder='big', signed=True) + data[seq_id : seq_id + MESSAGE_SIZE]
-        messages.append((seq_id, message))
-        # move seq_id tmp pointer ahead
-        seq_id += MESSAGE_SIZE
 
     # when window_end is the same as num_messages, we have sent and acked all messages
     while window_end < num_messages:
@@ -88,7 +85,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp_socket:
 
                     # update window pointers
                     window_start_old = window_start
-                    window_start = int(ack_id/MESSAGE_SIZE)
+                    window_start = math.ceil(ack_id/MESSAGE_SIZE)
                     window_end_old = window_end
                     window_end = min(window_start + WINDOW_SIZE, num_messages)
 
@@ -113,8 +110,6 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp_socket:
 
                 # break if we have sent all data (will also break outer while, window_end = num_messages)
                 if(ack_id >= len(data)):
-                    # we have to record packet delay of very last packet that just got acked
-                    packet_delays[-1] = packet_end_time - packet_delays[-1]
                     break
 
             except socket.timeout:
@@ -152,5 +147,3 @@ print("Report")
 print("Throughput:               %.4f," % throughput)
 print("Average Per-packet delay: %.4f," % avg_per_packet_delay)
 print("Performance metric:       %.4f" % (throughput / avg_per_packet_delay))
-
-
