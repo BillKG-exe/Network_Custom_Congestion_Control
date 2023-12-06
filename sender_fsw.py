@@ -12,7 +12,7 @@ MESSAGE_SIZE = PACKET_SIZE - SEQ_ID_SIZE
 WINDOW_SIZE = 100
 
 # read data
-with open('send.txt', 'rb') as f:
+with open('file.mp3', 'rb') as f:
     data = f.read()
 
 # PACKETIZE DATA
