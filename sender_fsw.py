@@ -103,6 +103,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp_socket:
                 # if ack_id = window_start (cant be less), then we got a dup ack
                 else:
                     dup_ack += 1
+                    # fast retransmit if 3 dup acks
                     if(dup_ack == 3):
                             print("Resending (fast retransmit)", messages[window_start][0])
                             udp_socket.sendto(messages[window_start][1], ('localhost', 5001))
